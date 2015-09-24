@@ -46,6 +46,16 @@ module.exports = function (grunt) {
             }
         },
 
+        rollup: {
+            options: {},
+            browser: {
+                options: {},
+                files: {
+                    'dist/less-rolledup.js': ['lib/less/index.js']
+                }
+            }
+        },
+
         browserify: {
             browser: {
                 src: ['./lib/less-browser/bootstrap.js'],
@@ -282,7 +292,7 @@ module.exports = function (grunt) {
                     specs: 'test/browser/runner-filemanagerPlugin.js',
                     outfile: 'tmp/browser/test-runner-filemanager-plugin.html'
                 }
-            }            
+            }
         },
 
         'saucelabs-jasmine': {
