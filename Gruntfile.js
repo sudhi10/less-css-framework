@@ -49,9 +49,12 @@ module.exports = function (grunt) {
         rollup: {
             options: {},
             browser: {
-                options: {},
+                options: {
+                    format: 'umd',
+                    moduleName: 'less'
+                },
                 files: {
-                    'dist/less-rolledup.js': ['lib/less/index.js']
+                    'dist/less.js': ['lib/less-browser/bootstrap.js']
                 }
             }
         },
