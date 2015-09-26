@@ -6,7 +6,7 @@ module.exports = function (grunt) {
     // Report the elapsed execution time of tasks.
     require('time-grunt')(grunt);
 
-    var COMPRESS_FOR_TESTS = true;
+    var COMPRESS_FOR_TESTS = false;
 
     // Project configuration.
     grunt.initConfig({
@@ -53,35 +53,22 @@ module.exports = function (grunt) {
                     format: 'umd',
                     moduleName: 'less'
                 },
-                files: {
-                    'dist/less.js': ['lib/less-browser/bootstrap.js']
-                }
-            }
-        },
-
-        browserify: {
-            browser: {
-                src: ['./lib/less-browser/bootstrap.js'],
-                options: {
-                    exclude: ["promise"],
-                    browserifyOptions: {
-                        standalone: 'less'
-                    }
-                },
+                src: 'lib/less-browser/bootstrap.js',
                 dest: 'tmp/less.js'
             }
         },
+
         concat: {
             options: {
                 stripBanners: 'all',
                 banner: '<%= meta.banner %>'
             },
             browsertest: {
-                src: COMPRESS_FOR_TESTS ? '<%= uglify.test.dest %>' : '<%= browserify.browser.dest %>',
+                src: COMPRESS_FOR_TESTS ? '<%= uglify.test.dest %>' : '<%= rollup.browser.dest %>',
                 dest: 'test/browser/less.js'
             },
             dist: {
-                src: '<%= browserify.browser.dest %>',
+                src: '<%= rollup.browser.dest %>',
                 dest: 'dist/less.js'
             },
             // Rhino
@@ -117,7 +104,7 @@ module.exports = function (grunt) {
                 dest: 'dist/less.min.js'
             },
             test: {
-                src: '<%= browserify.browser.dest %>',
+                src: '<%= rollup.browser.dest %>',
                 dest: 'tmp/less.min.js'
             }
         },
@@ -155,7 +142,7 @@ module.exports = function (grunt) {
             options: {
                 keepRunner: true,
                 host: 'http://localhost:8081/',
-                vendor: ['test/browser/jasmine-jsreporter.js', 'test/browser/common.js', 'test/browser/less.js'],
+                vendor: ['node_modules/es6-promise/dist/es6-promise.js', 'test/browser/jasmine-jsreporter.js', 'test/browser/common.js', 'test/browser/less.js'],
                 template: 'test/browser/test-runner-template.tmpl'
             },
             main: {
@@ -382,7 +369,7 @@ module.exports = function (grunt) {
 
     // Release
     grunt.registerTask('dist', [
-        'browserify:browser',
+        'rollup:browser',
         'concat:dist',
         'uglify:dist',
         'updateBowerJson'
@@ -397,7 +384,7 @@ module.exports = function (grunt) {
 
     // Create the browser version of less.js
     grunt.registerTask('browsertest-lessjs', [
-        'browserify:browser',
+        'rollup:browser',
         'uglify:test',
         'concat:browsertest'
     ]);
