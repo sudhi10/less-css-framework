@@ -51,7 +51,9 @@ module.exports = function (grunt) {
             browser: {
                 options: {
                     format: 'umd',
-                    moduleName: 'less'
+                    moduleName: 'less',
+                    sourceMap: true,
+                    sourceMapRelativePaths: true
                 },
                 src: 'lib/less-browser/bootstrap.js',
                 dest: 'tmp/less.js'
