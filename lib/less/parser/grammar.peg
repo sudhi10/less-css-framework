@@ -1,0 +1,207 @@
+{
+  function sel(match, indices) {
+    return match.map(function(m) {
+      var arr = [];
+        indices.forEach(function(i) {
+          arr.push(m[i]);
+        });
+        return arr;
+    });
+  }
+}
+Stylesheet
+  = _ a:Primary* _ 
+    { return a }
+
+Primary
+  = _ a:Declaration _ ";" _ b:Primary?
+     { return b ? [a].concat(b) : a; }
+   / _ x:Ruleset _
+     { return x }
+   / _ y:MixinDefinition _
+     { return y }
+   / _ z:VariableDefinition _
+     { return z }
+
+// these need semi-colon separators
+Declaration   
+  = Rule / MixinCall / VariableDefinition // | RulesetCall
+
+Ruleset
+  = a:SelectorList _ b:Block
+    { return { selectors:a, block:b } }
+
+Block
+  = "{" _ primary:Primary* _ "}" ";"?
+    { return primary }
+    
+SelectorList
+  = a:Selector b:(_ "," _ Selector)* c:Guard?
+    { return [a].concat(sel(b, [3])); }
+
+MixinDefinition
+  = a:ClassOrId _ "(" b:Args? ")" _ c:Block
+    { return a; }
+
+// Elements
+Selector "Selector"
+  = a:Element _ b:Element
+    { return [a, [" ", b]] }
+    / a:Element _ b:(Combinator _ Element _)*
+    { return b.length > 0 ? [a].concat(sel(b, [0,2])) : a }
+
+Class 
+  = $("." Ident)
+
+Id
+  = $("#" Ident)
+
+Element 
+  = Class / Id / Ident / "[" Attr (_ "i")? "]" / "&" / Pseudo / "*"
+
+Combinator
+  = ">" / "+" / "~" / "|" / "/" Ident "/" / ">>" / "||" / ">>>"      // Current CSS4 combinators on the end
+
+Attr
+  = "[" Ident "]" / "[" Ident [|~*$^]? "=" (Quoted / Ident) "]"
+
+Pseudo
+  = ":" ":"? Ident ("(" [^)]* ")")?
+
+Extend
+  = ":extend(" _ SelectorList (__ ExtendKeys)? ")"
+
+ExtendKeys
+  = "!"? ("all" / "deep" / "ALL" / "DEEP")
+
+ClassOrId
+  = Class / Id
+
+MixinName = ClassOrId
+
+Rule
+  = prop:$Ident _ ":" _ val:$Value
+    { return { prop: prop, val: val } }
+
+VariableDefinition
+  = name:Variable _ ":" _ val:Block
+    { return { name: name, val: val  } }
+  / name:Variable _ ":" _ val:Value
+    { return { name: name, val: val  } }
+
+Value
+  = Entity / Entity _ ( __ / ",") _ Entity
+
+// ENTITIES
+Entity
+  = Comment         
+   / Literal          
+   / Var            
+   / Prop            
+   / Url             
+   / FunctionCall     
+   / Keyword          
+   / Javascript    
+
+  Quoted
+    = "\"" ([^\"\n\r] / "\\\"" )* "\""
+      / "'" ([^\'\n\r] / "\\'")* "'"
+
+  Num         = Int / Int? "." Int  
+  Percentage  = Num "%"
+  Dimension   = Num Ident
+  Keyword     = $([_A-Za-z-] [A-Za-z0-9_-]*)
+
+  FunctionCall
+    = Ident "(" Args ")"  // -- arguments?
+     / "progid:" [^(]* "(" Assignment ")"
+
+  Assignment
+    = Keyword "=" Value 
+
+  Literal
+    = Num               
+     / Dimension         
+     / Color             
+     / Quoted            
+     / UnicodeDescriptor 
+
+  Url
+    = "url(" Quoted ")"     // -- need to extract the url
+
+  Prop = PropReference / PropReferenceCurly
+  Var  = Variable / VariableCurly
+  Interpolator = VariableCurly / PropReferenceCurly
+
+  PropReference
+    = "$" Ident
+
+  PropReferenceCurly
+    = "${" _ Namespace? _ Ident _ "}"  // -- TODO: namespacing needs to be optional
+
+  Variable
+    = $("@" "@"? [A-Za-z0-9_-]+)
+
+  VariableCurly
+    = "@{" _ Namespace? _ "@"? [\w-]+ _ "}"
+
+  Color
+    = "#" Hex3 Hex3?
+
+  UnicodeDescriptor
+    = "U+" [0-9a-fA-F?]+ ("-" [0-9a-fA-F?]+)?
+
+  Javascript
+    = "~"? "`" [^`]* "`"
+
+MixinCall
+  = Namespace MixinCall
+   / MixinName "(" Args ")"
+
+Args
+  = Variable
+    / Rule
+    / "..."
+
+
+// TEMP
+Namespace = "5"
+Guard = "6"
+
+
+Ident
+  = a:"-"? b:NameStart c:NameChar*
+    { return a ? a : "" + b + c.join("") }
+   //# | ident:? variableCurly ident:?  # not sure how to do this
+
+// Primitives
+Int
+  = [0-9]+  
+Hex3
+  = Hex Hex Hex
+Hex
+  = [a-fA-F0-9]
+NameStart
+  = [a-zA-Z_] / NonAscii / Escape 
+NameChar
+  = [A-Za-z0-9_] / NonAscii / Escape 
+NonAscii
+  = [\u0080-\uD7FF\uE000-\uFFFD]
+Escape
+  = Unicode / "\\" [\u0020-\u007E\u0080-\uD7FF\uE000-\uFFFD]
+Unicode
+  = "\\" Hex+ _?
+
+
+// Whitespace
+_  = __?
+__ = [ \t\r\n\f]+
+
+Comment
+  = "//" [^\n\r]* 
+    / "/*" CommentChars+ .? "*/" 
+        
+CommentChars
+  = "*" [^/] 
+    / [^*] .
+

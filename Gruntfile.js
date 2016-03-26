@@ -340,6 +340,13 @@ module.exports = function (grunt) {
                 }
             }
         },
+        // parser generator
+        peg: {
+            less: {
+                src: 'lib/less/parser/grammar.peg',
+                dest: 'lib/less/parser/lessparser.js'
+            }
+        },
 
         // Clean the version of less built for the tests
         clean: {
@@ -351,6 +358,7 @@ module.exports = function (grunt) {
 
     // Load these plugins to provide the necessary tasks
     require('jit-grunt')(grunt);
+    grunt.loadNpmTasks('grunt-peg');
 
     // Actually load this plugin's task(s).
     grunt.loadTasks('build/tasks');
