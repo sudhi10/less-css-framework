@@ -344,7 +344,7 @@ module.exports = function (grunt) {
         peg: {
             less: {
                 src: 'lib/less/parser/grammar.peg',
-                dest: 'lib/less/parser/lessparser.js'
+                dest: 'lib/less/parser/less_peg_parser.js'
             }
         },
 

@@ -60,6 +60,7 @@
     "grunt-saucelabs": "^8.3.2",
     "grunt-shell": "^1.1.1",
     "jit-grunt": "^0.9.1",
+    "nearley": "^2.6.0",
     "pegjs-override-action": "^0.2.3",
     "performance-now": "^0.2.0",
     "time-grunt": "^1.0.0"
