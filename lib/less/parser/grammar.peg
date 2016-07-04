@@ -10,46 +10,58 @@
   }
 }
 Stylesheet
-  = _ a:Primary* _ 
+  = _ a:Root* _ 
     { return a }
 
-Primary
-  = _ a:Declaration _ ";" _ b:Primary?
-     { return b ? [a].concat(b) : a; }
+Root
+  = _ Comment _
    / _ x:Ruleset _
      { return x }
    / _ y:MixinDefinition _
      { return y }
-   / _ z:VariableDefinition _
+   / _ z:VariableDefinition _ (";" (_ Root _)?)?
      { return z }
+   / _ AtRule _ (";" (_ Root _)?)? 
+   / _ z:MixinCall _ (";" (_ Root _)?)?
+     { return z }
+     
+Primary
+  = _ a:Rule _ (";" (_ Primary _)?)?
+     { return a; }
+   / _ x:Root _
 
+AtRule
+  = "@" Ident _ [^{;]* _ Block?  // need arguments etc
+  
 // these need semi-colon separators
-Declaration   
-  = Rule / MixinCall / VariableDefinition // | RulesetCall
+Rule   
+  = Declaration / MixinCall / VariableDefinition / AtRule // | RulesetCall
 
 Ruleset
-  = a:SelectorList _ b:Block
+  = Comment? _ a:SelectorList _ b:Block
     { return { selectors:a, block:b } }
 
 Block
-  = "{" _ primary:Primary* _ "}" ";"?
+  = "{" _ primary:Primary* _ "}"
     { return primary }
     
 SelectorList
-  = a:Selector b:(_ "," _ Selector)* c:Guard?
+  = a:Selector* b:(_ "," _ Selector*)* c:Guard?
     { return [a].concat(sel(b, [3])); }
 
 MixinDefinition
   = a:ClassOrId _ "(" b:Args? ")" _ c:Block
-    { return a; }
+    { return { a:a, c:c, location: location(), text: text() } }
 
 // Elements
 Selector "Selector"
-  = a:Element _ b:Element
+  = a:Element? _ Comment? _ b:(Combinator _ Selector _)
+    { return [a,b] }
+    / a:Element __ b:Selector
     { return [a, [" ", b]] }
-    / a:Element _ b:(Combinator _ Element _)*
-    { return b.length > 0 ? [a].concat(sel(b, [0,2])) : a }
-
+    / Element _ Comment? 
+   
+// Elements
 Class 
   = $("." Ident)
 
@@ -57,13 +69,13 @@ Id
   = $("#" Ident)
 
 Element 
-  = Class / Id / Ident / "[" Attr (_ "i")? "]" / "&" / Pseudo / "*"
+  = Class / Id / Ident / Attr / "&" / Pseudo / "*"
 
 Combinator
   = ">" / "+" / "~" / "|" / "/" Ident "/" / ">>" / "||" / ">>>"      // Current CSS4 combinators on the end
 
 Attr
-  = "[" Ident "]" / "[" Ident [|~*$^]? "=" (Quoted / Ident) "]"
+  = "[" Ident ([|~*$^]? "=" (Quoted / [^\]]+))? (_ "i")? "]"
 
 Pseudo
   = ":" ":"? Ident ("(" [^)]* ")")?
@@ -79,55 +91,72 @@ ClassOrId
 
 MixinName = ClassOrId
 
-Rule
-  = prop:$Ident _ ":" _ val:$Value
-    { return { prop: prop, val: val } }
+Declaration
+  = prop:$Ident _ ":" _ val:$Value 
+    { return { 
+      type: "Declaration", 
+      prop: prop, 
+      val: val
+    } }
 
 VariableDefinition
-  = name:Variable _ ":" _ val:Block
+  = name:Variable _ ":" _ val:Block 
     { return { name: name, val: val  } }
-  / name:Variable _ ":" _ val:Value
+  / name:Variable _ ":" _ val:Value 
     { return { name: name, val: val  } }
 
 Value
-  = Entity / Entity _ ( __ / ",") _ Entity
+  = Entity (_ ","? _ Entity)* _ ("!" _ "important")?
+
+NonCommaValue
+  = Entity (_ Entity)* _ ("!" _ "important")?
 
 // ENTITIES
 Entity
-  = Comment         
-   / Literal          
-   / Var            
-   / Prop            
-   / Url             
-   / FunctionCall     
-   / Keyword          
-   / Javascript    
+  = Expression
+   / Comment   
+   / Literal
+   / Url
+   / Keyword
+   / "/"
+   / Javascript
 
+  Literal
+    = Quoted
+     / UnicodeDescriptor
+  
+  ExpressionParts
+    = Unit
+     / FunctionCall
+     / Color
+     / Variable
+     / PropReference
+ 
   Quoted
     = "\"" ([^\"\n\r] / "\\\"" )* "\""
       / "'" ([^\'\n\r] / "\\'")* "'"
 
-  Num         = Int / Int? "." Int  
+  Num         = (Int? ".")? Int
   Percentage  = Num "%"
   Dimension   = Num Ident
+  Unit        = Num ("%" / Ident)?
   Keyword     = $([_A-Za-z-] [A-Za-z0-9_-]*)
 
+  ExpressionContainer
+    = "(" _ Expression _ ")"
+  Expression
+    = ExpressionContainer (_ Operator _ Expression)? / ExpressionParts (_ Operator _ Expression)?
+ 
+    
   FunctionCall
-    = Ident "(" Args ")"  // -- arguments?
+    = (Ident / "%") "(" Args ")" 
      / "progid:" [^(]* "(" Assignment ")"
 
   Assignment
     = Keyword "=" Value 
 
-  Literal
-    = Num               
-     / Dimension         
-     / Color             
-     / Quoted            
-     / UnicodeDescriptor 
-
   Url
-    = "url(" Quoted ")"     // -- need to extract the url
+    = "url(" _ (Quoted / [^)]*) _ ")"     // -- need to extract the url
 
   Prop = PropReference / PropReferenceCurly
   Var  = Variable / VariableCurly
@@ -155,14 +184,21 @@ Entity
     = "~"? "`" [^`]* "`"
 
 MixinCall
-  = Namespace MixinCall
-   / MixinName "(" Args ")"
+  = ClassOrId _ ">"? _ MixinCall
+   / MixinName ("(" Args? ")")?
 
 Args
-  = Variable
-    / Rule
-    / "..."
+ = CommaArgument _ ("," _ CommaArgument)*
+  / SemiColonArgument _ (";"_ SemiColonArgument _)* ";"?
 
+CommaArgument
+  = Variable (_ ":" _ NonCommaValue)
+   / NonCommaValue
+   / "..."
+
+SemiColonArgument
+  = CommaArgument
+  / Value
 
 // TEMP
 Namespace = "5"
@@ -170,11 +206,13 @@ Guard = "6"
 
 
 Ident
-  = a:"-"? b:NameStart c:NameChar*
-    { return a ? a : "" + b + c.join("") }
+  = b:NameStart c:NameChar*
+    { return b + c.join("") }
    //# | ident:? variableCurly ident:?  # not sure how to do this
 
 // Primitives
+Operator
+  = "*" / "+" / "-" / "/"
 Int
   = [0-9]+  
 Hex3
@@ -182,9 +220,9 @@ Hex3
 Hex
   = [a-fA-F0-9]
 NameStart
-  = [a-zA-Z_] / NonAscii / Escape 
+  = [a-zA-Z_-] / NonAscii / Escape 
 NameChar
-  = [A-Za-z0-9_] / NonAscii / Escape 
+  = [A-Za-z0-9_-] / NonAscii / Escape 
 NonAscii
   = [\u0080-\uD7FF\uE000-\uFFFD]
 Escape
@@ -199,9 +237,9 @@ __ = [ \t\r\n\f]+
 
 Comment
   = "//" [^\n\r]* 
-    / "/*" CommentChars+ .? "*/" 
+    / "/*" CommentChars* "*/" 
         
 CommentChars
   = "*" [^/] 
-    / [^*] .
+    / [^*]
 
